@@ -3,6 +3,14 @@ uuid = "a6dccd6e-1c7a-4ce0-97a6-e442046fad5c"
 authors = ["vilim <vilim@neuro.mpg.de> and contributors"]
 version = "0.1.0"
 
+[deps]
+DiskArrays = "3c3547ce-8d99-4f5e-a174-61eb10b00ae3"
+Glob = "c27321d9-0574-5035-807b-f59d2c89b15c"
+HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+PaddedBlocks = "00ed6140-19f5-4745-8680-fdb6f4f73d16"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+
 [compat]
 julia = "1.3"
 
