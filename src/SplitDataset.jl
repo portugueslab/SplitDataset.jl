@@ -71,7 +71,6 @@ end
 function DiskArrays.readblock!(dset::H5SplitDataset{T, N}, target, i::AbstractUnitRange...) where {T,N}
     idx = i
     file_limits, block_limits = PaddedBlocks.blocks_to_take(dset.blocks, idx)
-    target_size = tuple((sl.stop - sl.start + 1 for sl in idx)...)
     s2i = LinearIndices(dset.blocks.blocks_per_dim)
     for f_idx in
         Iterators.product((s:e for (s, e) in zip(file_limits[1, :], file_limits[2, :]))...)
