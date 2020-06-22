@@ -12,6 +12,7 @@ PaddedBlocks = "00ed6140-19f5-4745-8680-fdb6f4f73d16"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [compat]
+Glob = "1.3"
 julia = "1.3"
 
 [extras]
