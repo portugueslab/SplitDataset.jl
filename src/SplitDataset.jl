@@ -10,6 +10,7 @@ using PaddedBlocks
 struct H5SplitDataset{T,N} <: AbstractDiskArray{T, N}
     files::Array{String,1}
     blocks::Blocks{N}
+    stackname::String
 end
 
 haschunks(a::H5SplitDataset) = DiskArrays.Chunked()
@@ -47,13 +48,17 @@ function H5SplitDataset(folder::String, prefix::String = "")
         blocks, filenames = file_blocks_names(files[end])
     end
     n_dim = length(blocks.full_size)
-    try
-        el1 = h5read(files[1], "stack_$(n_dim)D", tuple((1:1 for _ in 1:n_dim)...))
-        return H5SplitDataset{eltype(el1),n_dim}(files, blocks)
-    catch e
-        el1 = h5read(files[1], "stack")
-        return H5SplitDataset{eltype(el1),n_dim}(files, blocks)
+
+    stack_name = h5open(files[1]) do f
+        if "stack" in names(f)
+            return "stack"
+        else
+            return "stack_$(n_dim)D"
+        end
     end
+
+    el1 = h5read(files[1], stack_name, tuple((1:1 for _ in 1:n_dim)...))
+    return H5SplitDataset{eltype(el1),n_dim}(files, blocks, stack_name)
 end
 
 "Collects attributes form a group in a deepdish-saved HDF5 file"
@@ -101,13 +106,10 @@ function DiskArrays.readblock!(dset::H5SplitDataset{T, N}, target, i::AbstractUn
             zip(rel_idx, dset.blocks.block_size, block_limits[1, :], read_size)
         )...)
 
-        try
-            ar = h5read(dset.files[i_file], "stack_$(N)D", source_slices)
-            target[target_slices...] .= ar
-        catch
-            ar = h5read(dset.files[i_file], "stack", source_slices)
-            target[target_slices...] .= ar
-        end
+
+        ar = h5read(dset.files[i_file], dset.stackname, source_slices)
+        target[target_slices...] .= ar
+       
     end
 end
 

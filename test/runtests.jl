@@ -5,6 +5,6 @@ using Test
     a = reshape(1:81, 9, 9)
     mktempdir() do tdir
         ds = H5SplitDataset(tdir, a, (3, 3))
-        return @test all(a[1:4, 1:4] == ds[1:4, 1:4])
+        @test all(a[1:4, 1:4] == ds[1:4, 1:4])
     end
 end
