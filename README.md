@@ -20,4 +20,4 @@ H5SplitDataset(
 )
 ```
 
-Writing parts of arrays is currently not supported. This package is an intermediate solution until Zarr supports all the features we need.
+Writing not-block-aligned parts of arrays is currently not supported. This package is an intermediate solution until Zarr supports all the features we need.

@@ -61,6 +61,12 @@ function H5SplitDataset(folder::String, prefix::String = "")
     return H5SplitDataset{eltype(el1),n_dim}(files, blocks, stack_name)
 end
 
+function H5SplitDataset(T, path, full_size::NTuple{N, Int}, block_size::NTuple{N, Int}) where {N}
+    blocks = Blocks(Int64.(full_size), Int64.(block_size))
+    files = [joinpath(path, @sprintf("%04d", i)) for i in 0:(length(blocks)-1)]
+    return H5SplitDataset{T, length(full_size)}(files, blocks, "stack")
+end
+
 "Collects attributes form a group in a deepdish-saved HDF5 file"
 function collect_attributes(hgroup)
     atrnms = names(attrs(hgroup))
@@ -73,42 +79,60 @@ function collect_attributes(hgroup)
     return [read(attrs(hgroup)["i$i"]) for i in nums]
 end
 
+
+function get_matching_slices(f_idx, file_limits, block_limits, block_size)
+    source_slices = tuple((
+        (ci == s ? si : 1):(ci == e ? ei : bs)
+        for
+        (ci, s, e, si, ei, bs) in zip(
+            f_idx,
+            file_limits[1, :],
+            file_limits[2, :],
+            block_limits[1, :],
+            block_limits[2, :], 
+            block_size  
+        ))...)
+
+    read_size = tuple((sl.stop - sl.start + 1 for sl in source_slices)...)
+
+    rel_idx = f_idx .- tuple(file_limits[1, :]...) .+ 1
+    target_slices = tuple((
+        begin
+            st = (st_idx == 1 ? 1 : (st_idx - 2) * bs + bs - first_idx + 2)
+            st:(st+sz-1)
+        end for
+        (st_idx, bs, first_idx, sz) in
+        zip(rel_idx, block_size, block_limits[1, :], read_size)
+    )...)
+    return source_slices, target_slices
+end
+
 function DiskArrays.readblock!(dset::H5SplitDataset{T, N}, target, i::AbstractUnitRange...) where {T,N}
     idx = i
     file_limits, block_limits = PaddedBlocks.blocks_to_take(dset.blocks, idx)
     s2i = LinearIndices(dset.blocks.blocks_per_dim)
     for f_idx in
         Iterators.product((s:e for (s, e) in zip(file_limits[1, :], file_limits[2, :]))...)
-        rel_idx = f_idx .- tuple(file_limits[1, :]...) .+ 1
         i_file = s2i[f_idx...]
-        source_slices = tuple((
-            (ci == s ? si : 1):(ci == e ? ei : bs)
-
-            for
-            (ci, s, e, si, ei, bs) in zip(
-                f_idx,
-                file_limits[1, :],
-                file_limits[2, :],
-                block_limits[1, :],
-                block_limits[2, :],
-                dset.blocks.block_size,
-            )
-        )...)
-
-        read_size = tuple((sl.stop - sl.start + 1 for sl in source_slices)...)
-
-        target_slices = tuple((
-            begin
-                st = (st_idx == 1 ? 1 : (st_idx - 2) * bs + bs - first_idx + 2)
-                st:(st+sz-1)
-            end for
-            (st_idx, bs, first_idx, sz) in
-            zip(rel_idx, dset.blocks.block_size, block_limits[1, :], read_size)
-        )...)
-
-
+        source_slices, target_slices = get_matching_slices(f_idx, file_limits, block_limits, dset.blocks.block_size)
         ar = h5read(dset.files[i_file], dset.stackname, source_slices)
         target[target_slices...] .= ar
+       
+    end
+end
+
+function DiskArrays.writeblock!(dset::H5SplitDataset{T, N}, target, i::AbstractUnitRange...) where {T,N}
+    idx = i
+    file_limits, block_limits = PaddedBlocks.blocks_to_take(dset.blocks, idx)
+    s2i = LinearIndices(dset.blocks.blocks_per_dim)
+    for f_idx in
+        Iterators.product((s:e for (s, e) in zip(file_limits[1, :], file_limits[2, :]))...)
+        i_file = s2i[f_idx...]
+
+        source_slices, target_slices = get_matching_slices(f_idx, file_limits, block_limits, dset.blocks.block_size)
+        
+        # TODO write incomplete blocks
+        h5write(dset.files[i_file], dset.stackname, target[target_slices...])
        
     end
 end
