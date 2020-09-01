@@ -13,13 +13,14 @@ end
 @testset "incremental writing" begin
     T = UInt16
     a = T.(reshape(1:9*9*9, 9, 9, 9))
-    bs = (1, 3, 3)
-    mktempdir() do tdir
-        ds = H5SplitDataset(T, tdir, size(a), bs)
-        bl = Blocks(size(a),bs)
-        for sls in PaddedBlocks.slices(bl)
-            ds[sls...] .= a[sls...]
+    for bs in [(1, 3, 3), (3,3,1), (9,9,1)]
+        mktempdir() do tdir
+            ds = H5SplitDataset(T, tdir, size(a), bs)
+            bl = Blocks(size(a),bs)
+            for sls in PaddedBlocks.slices(bl)
+                ds[sls...] .= a[sls...]
+            end
+            @test all(a .== ds[:, :, :])
         end
-        @test all(a .== ds[:, :, :])
     end
 end

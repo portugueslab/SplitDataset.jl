@@ -63,9 +63,48 @@ end
 
 function H5SplitDataset(T, path, full_size::NTuple{N, Int}, block_size::NTuple{N, Int}) where {N}
     blocks = Blocks(Int64.(full_size), Int64.(block_size))
-    files = [joinpath(path, @sprintf("%04d", i)) for i in 0:(length(blocks)-1)]
+    files = [joinpath(path, @sprintf("%04d.h5", i)) for i in 0:(length(blocks)-1)]
+    if !isdir(path)
+        mkpath(path)
+    end
+    open(joinpath(path, "stack_metadata.json"), "w") do f
+        return JSON3.write(
+            f,
+            Dict(
+                "shape_full" => blocks.full_size[end:-1:1],
+                "shape_block" => blocks.block_size[end:-1:1],
+            ),
+        )
+    end    
     return H5SplitDataset{T, length(full_size)}(files, blocks, "stack")
 end
+
+function H5SplitDataset(
+    folder,
+    a::AbstractArray{T,N},
+    block_size::NTuple{N,Int},
+) where {N,T}
+    blocks = Blocks(size(a), block_size)
+    mkpath(folder)
+    files = String[]
+    for (i_block, sl) in enumerate(slices(blocks))
+        filename = @sprintf("%04d.h5", i_block)
+        push!(files, filename)
+        savepath = joinpath(folder, filename)
+        el1 = h5write(savepath, "stack_$(N)D", a[sl...])
+    end
+    open(joinpath(folder, "stack_metadata.json"), "w") do f
+        return JSON3.write(
+            f,
+            Dict(
+                "shape_full" => blocks.full_size[end:-1:1],
+                "shape_block" => blocks.block_size[end:-1:1],
+            ),
+        )
+    end
+    return H5SplitDataset(folder)
+end
+
 
 "Collects attributes form a group in a deepdish-saved HDF5 file"
 function collect_attributes(hgroup)
@@ -132,35 +171,13 @@ function DiskArrays.writeblock!(dset::H5SplitDataset{T, N}, target, i::AbstractU
         source_slices, target_slices = get_matching_slices(f_idx, file_limits, block_limits, dset.blocks.block_size)
         
         # TODO write incomplete blocks
+        if isfile(dset.files[i_file])
+            @warn "Overwriting"*dset.files[i_file]
+            rm(dset.files[i_file])
+        end
         h5write(dset.files[i_file], dset.stackname, target[target_slices...])
        
     end
-end
-
-function H5SplitDataset(
-    folder,
-    a::AbstractArray{T,N},
-    block_size::NTuple{N,Int},
-) where {N,T}
-    blocks = Blocks(size(a), block_size)
-    mkpath(folder)
-    files = String[]
-    for (i_block, sl) in enumerate(slices(blocks))
-        filename = @sprintf("%04d.h5", i_block)
-        push!(files, filename)
-        savepath = joinpath(folder, filename)
-        el1 = h5write(savepath, "stack_$(N)D", a[sl...])
-    end
-    open(joinpath(folder, "stack_metadata.json"), "w") do f
-        return JSON3.write(
-            f,
-            Dict(
-                "shape_full" => blocks.full_size[end:-1:1],
-                "shape_block" => blocks.block_size[end:-1:1],
-            ),
-        )
-    end
-    return H5SplitDataset(folder)
 end
 
 export H5SplitDataset
