@@ -170,12 +170,18 @@ function DiskArrays.writeblock!(dset::H5SplitDataset{T, N}, target, i::AbstractU
 
         source_slices, target_slices = get_matching_slices(f_idx, file_limits, block_limits, dset.blocks.block_size)
         
-        # TODO write incomplete blocks
-        if isfile(dset.files[i_file])
-            @warn "Overwriting"*dset.files[i_file]
-            rm(dset.files[i_file])
+        # TODO handle wrong existing datasets
+        h5open(dset.files[i_file], "cw") do fid
+            if !exists(fid, dset.stackname)
+                h5dset = d_create(fid, dset.stackname, datatype(T),
+                dataspace(dset.blocks.block_size...),
+                "chunk", HDF5.heuristic_chunk(T, (dset.blocks.block_size)), "blosc", 3)
+            else
+                h5dset = fid[dset.stackname]
+            end
+
+            h5dset[source_slices...] = target[target_slices...]
         end
-        h5write(dset.files[i_file], dset.stackname, target[target_slices...])
        
     end
 end
